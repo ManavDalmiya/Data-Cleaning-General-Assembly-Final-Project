@@ -1,0 +1,159 @@
+---
+title: "Grupo Data Challenge Train - Random Sample"
+author: "Manav Dalmiya"
+date: "4/13/2017"
+output: html_document
+---
+```{r}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(scales)
+library(treemap)
+```
+
+```{r}
+setwd("~/Desktop/Programming/General Assembly/DataScience/DAT-NYC-39/dataProject/Datasets")
+
+train <- read_csv("train.csv")
+train <- train %>% sample_frac(0.001)
+```
+
+```{r}
+client <- read_csv("cliente_tabla.csv")
+product <- read_csv("producto_tabla.csv")
+town <- read_csv("town_state.csv")
+```
+
+```{r}
+ggplot(train)+
+  geom_histogram(aes(x=Semana), color="black", fill="red", alpha=0.5)+
+  scale_x_continuous(breaks=1:10)+
+  scale_y_continuous(name="Client / Product deliveries")+
+  theme_bw()
+```
+
+### Top 100 Sales Depots - Histogram
+```{r}
+agencias <- train %>%
+  group_by(Agencia_ID) %>%
+  summarise(Units = sum(Venta_uni_hoy),
+            Pesos = sum(Venta_hoy),
+            Return_Units = sum(Dev_uni_proxima),
+            Return_Pesos = sum(Dev_proxima),
+            Net = sum(Demanda_uni_equil)) %>%
+  mutate(Net_Pesos = Pesos - Return_Pesos,
+         Return_Rate = Return_Units / (Units+Return_Units)) %>%
+  arrange(desc(Units)) %>%
+  inner_join(town, by="Agencia_ID")
+```
+
+```{r}
+ggplot(agencias, aes(x=Units/7))+
+  geom_histogram(fill="red", color="gray", binwidth=10000)+
+  scale_x_continuous(name="Units / Week", labels=function(x)paste(x/1000, "k"))+
+  scale_y_continuous(name="Agencias")+
+  theme_bw()
+```
+
+### Top 100 Sales Depots by % of Total Returns - Treemap
+
+```{r}
+treemap(agencias[1:100, ], 
+        index=c("Agencia_ID"), vSize="Units", vColor="Return_Rate", 
+        palette=c("#FFFFFF","#FFFFFF","#FF0000"),
+        type="value", title.legend="Units return %", title="Top 100 Sales Depots by % of Total Returns")
+```
+
+### Top 100 Individual Clients by % of Total Returns - Treemap
+
+```{r}
+sales <- train %>%
+  group_by(Cliente_ID) %>%
+  summarise(Units = sum(Venta_uni_hoy),
+            Pesos = sum(Venta_hoy),
+            Return_Units = sum(Dev_uni_proxima),
+            Return_Pesos = sum(Dev_proxima),
+            Net = sum(Demanda_uni_equil)) %>%
+  mutate(Return_Rate = Return_Units / (Units+Return_Units),
+         Avg_Pesos = Pesos / Units) %>%
+  mutate(Net_Pesos = Pesos - Return_Pesos) %>%
+  inner_join(client, by="Cliente_ID") %>%
+  arrange(desc(Pesos))
+
+treemap(sales[1:100, ], 
+        index=c("NombreCliente"), vSize="Units", vColor="Return_Rate", 
+        palette=c("#FFFFFF","#FFFFFF","#FF0000"),
+        type="value", title.legend="Units return %", title="Top 100 Clients by % of Total Returns")
+```
+
+### Top 100 Products by % of Total Returns - Treemap
+
+```{r}
+products <- train %>% group_by(Producto_ID) %>%
+  summarise(Units = sum(Venta_uni_hoy),
+            Pesos = sum(Venta_hoy),
+            Return_Units = sum(Dev_uni_proxima),0
+            Return_Pesos = sum(Dev_proxima),
+            Net = sum(Demanda_uni_equil)) %>%
+  mutate(Avg_Pesos = Pesos / Units,
+         Return_Rate = Return_Units / (Units+Return_Units)) %>%
+  filter(!is.nan(Avg_Pesos)) %>%
+  inner_join(product, by="Producto_ID") %>%
+  arrange(desc(Units))
+
+products$NombreProducto <- factor(as.character(products$NombreProducto), levels=products$NombreProducto)
+
+treemap(products[1:100, ], 
+        index=c("NombreProducto"), vSize="Units", vColor="Return_Rate", 
+        palette=c("#FFFFFF","#FFFFFF","#FF0000"),
+        type="value", title.legend="Units return %", title="Top 100 Products by % of Total Returns")
+```
+```{r}
+mean(products$Avg_Pesos)
+median(products$Avg_Pesos)
+mode(products$Avg_Pesos)
+sd(products$Avg_Pesos)
+```
+
+### Products - Histogram and EDF
+
+```{r}
+ggplot(products, aes(x=Avg_Pesos))+
+  geom_histogram(aes(y=..density..), fill="gray", color="black", alpha="0.3")+
+  geom_density(fill="red", alpha="0.3")+
+  scale_x_continuous(name="Products average price", lim=c(0, 50))+
+  scale_y_continuous(name="Density", labels=percent)+
+  theme_bw()
+```
+
+### Units Sold - Histogram + EDF
+
+```{r}
+unitssold <- train %>% 
+  group_by(Demanda_uni_equil) %>%
+  filter(!is.nan(Demanda_uni_equil)) %>%
+  arrange(desc(Demanda_uni_equil))
+```
+
+```{r}
+head(unitssold)
+```
+
+```{r}
+
+  summarise(totalunits = sum(Demanda_uni_equil),
+            Orders = count(Demanda_uni_equil)) %>%
+  mutate(totalunits, orders) %>%
+```
+
+
+```{r}
+ggplot(train$Demanda_uni_equil, aes(x=mean(train$Demanda_uni_equil)))+
+  geom_histogram(aes(y=..density..), fill="gray", color="black", alpha="0.3")+
+  geom_density(fill="red", alpha="0.3")+
+  scale_x_continuous(name="Units Sold", lim=c(0, 50))+
+  scale_y_continuous(name="Density", labels=percent)+
+  theme_bw()
+```
+
